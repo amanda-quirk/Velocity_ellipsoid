@@ -17,42 +17,39 @@ def sigma_LOS(oR, oZ, oP, i, PA): #i and PA come from tilted ring table (any dis
 	oLOS2 = (oR**2 * sine(PA)**2 + oP**2 * cosine(PA)**2) * sine(i)**2 + oZ**2 * cosine(i)**2
 	return np.sqrt(oLOS2)
 
-# def va2_vavc(oR, oP, oZ, R, vc): #vc and R from titled ring table
-# 	Rd = 5.76 #kpc
-# 	terms = np.zeros(len(R))
-# 	for j in range(len(R)):
-# 		if R[j] < 10:
-# 			k = 2
-# 		else:
-# 			k = 1
-# 		terms[j] = -oR**2 * ((oP**2 / oR**2) - 1.5 + (k * R[j] / Rd) + (oZ**2 / (2 * oR**2)))
-# 	return terms
+def va2_vavc(oR, oP, oZ, R, vc): #vc and R from titled ring table
+	Rd = 5.76 #kpc
+	terms = np.zeros(len(R))
+	for j in range(len(R)):
+		if R[j] < 10:
+			k = 2
+		else:
+			k = 1
+		terms[j] = -oR**2 * ((oP**2 / oR**2) - 1.5 + (k * R[j] / Rd) + (oZ**2 / (2 * oR**2)))
+	return terms
 
-# def va(oR, oP, oZ, R, vc):
-# 	C = va2_vavc(oR, oP, oZ, R, vc)
-# 	pos = vc + np.sqrt(vc**2 + C)
-# 	neg = vc - np.sqrt(vc**2 + C)
-# 	return pos, neg #want to use the negative root
+def va(oR, oP, oZ, R, vc):
+	C = va2_vavc(oR, oP, oZ, R, vc)
+	pos = vc + np.sqrt(vc**2 + C)
+	neg = vc - np.sqrt(vc**2 + C)
+	return neg #want to use the negative root
 
 #emcee functions =======================================================================================================================
 #define log likelihood function -- no errors right now; can I add in errors later?
-def ll(theta, oLOS_real, i, PA):#ll(theta, oLOS_real, va_real, i, PA, R, vc):
+def ll(theta, oLOS_real, va_real, i, PA, R, vc):
 	oR_guess, oZ_guess, oPhi_guess = theta
 	oLOS_calc = sigma_LOS(oR_guess, oZ_guess, oPhi_guess, i, PA)
 	oLOS_comp = -1 / 2 * (oLOS_real - oLOS_calc)**2
-	#va_calc = va(oR_guess, oZ_guess, oPhi_guess, R, vc)
-	#va_comp = -1 / 2 * (va_real - va_calc)**2
-	return oLOS_comp #+ va_comp
+	va_calc = va(oR_guess, oPhi_guess, oZ_guess, R, vc)
+	va_comp = -1 / 2 * (va_real - va_calc)**2
+	return oLOS_comp + va_comp
 
 #assuming normal distribution -- check this though
 def lprior(theta):
 	#pulling priors from theta
-	oR_guess, oZ_guess, oPhi_guess = theta
-	#negative ratio isn't physical 
-	if oR_guess < 0 or oZ_guess < 0 or oPhi_guess < 0:
-		prior = -np.inf 
+	oR_guess, oZ_guess, oPhi_guess = theta 
 	#mean and standard deviations of components -- will eventually want to change these for each age group
-	else:
+	if (oR_guess > 0 and oR_guess < 200) and (oZ_guess > 0 and oZ_guess < 200) and (oPhi_guess > 0 and oPhi_guess < 200):
 		mu_oR = 70
 		mu_oZ = np.sqrt(2) * mu_oR
 		mu_oPhi = 0.8 * mu_oR
@@ -62,11 +59,16 @@ def lprior(theta):
 		lprior_Z = -1 / 2 * (oZ_guess - mu_oZ)**2 / std**2
 		lprior_Phi = -1 / 2 * (oPhi_guess - mu_oPhi)**2 / std**2
 		prior = lprior_R + lprior_Z + lprior_Phi
+	else: #want to avoid unphysical parameters
+		prior = -1e100
 	return prior 
 
 #total probability
-def lnprob(theta, oLOS_real, i, PA):# lnprob(theta, oLOS_real, va_real, i, PA, R, vc):
-	return ll(theta, oLOS_real, i, PA) + lprior(theta)#ll(theta, oLOS_real, va_real, i, PA, R, vc) + lprior(theta)
+def lnprob(theta, oLOS_real, va_real, i, PA, R, vc):
+	lp = lprior(theta)
+	# if np.isfinite(lp):
+	# 	return -np.inf
+	return ll(theta, oLOS_real, va_real, i, PA, R, vc) + lp
 
 #read in fake dataset ==================================================================================================================
 #header='r (kpc), inclination (deg), PA (deg), circular vel (km/s), sigmaR (km/s), sigmaPhi (km/s), sigmaZ (km/s), sigmaLOS (km/s), AD (km/s)'
@@ -75,12 +77,21 @@ r, incs, pos_angs, vcs, sigmaR, sigmaPhi, sigmaZ, sigmaLOS, AD = np.loadtxt('../
 #set the emcee run =====================================================================================================================
 #fit for the components of the LOS dispersion -- again, for this exercise, we are not assuming that these components follow axis ratios
 ndim = 3
-nwalkers = 100
-initial_guess = np.array([80, 50, 60]) #initial guess for theta
-#do I want to do this in a different way -- formally make a normal distribution?
-pos = [initial_guess + 40 * np.random.randn(ndim) for i in range(nwalkers)] 
-pos = [abs(a) for a in pos] #start all walkers from a positive value
-nsteps = 500
+nwalkers = 50
+
+#initial guess -- will want to change for each age bin
+oR_0 = 80
+oZ_0 = 50
+oPhi_0 = 60
+oR_int = np.random.normal(loc=oR_0, scale=0.2 * oR_0, size=nwalkers)
+oR_int[oR_int < 0] = 1
+oZ_int = np.random.normal(loc=oZ_0, scale=0.5 * oZ_0, size=nwalkers)
+oZ_int[oZ_int < 0] = 1
+oPhi_int = np.random.normal(loc=oPhi_0, scale=0.5 * oPhi_0, size=nwalkers)
+oPhi_int[oPhi_int < 0] = 1
+pos = np.vstack((oR_int, oZ_int, oPhi_int)).T
+
+nsteps = 250
 #checking the distribution of initial guesses
 plt.hist([row[0] for row in pos])
 plt.xlabel('oR guess')
@@ -98,8 +109,9 @@ plt.close()
 #go star by star
 import corner
 for i in range(len(sigmaLOS)):
+	print(i)
 	plt.clf()
-	sampler = emcee.EnsembleSampler(nwalkers, ndim, lnprob, args=(sigmaLOS[i], incs[i], pos_angs[i]))#args=(sigmaLOS, AD, incs, pos_angs, r, vcs))
+	sampler = emcee.EnsembleSampler(nwalkers, ndim, lnprob, args=(sigmaLOS, AD, incs, pos_angs, r, vcs))
 	sampler.run_mcmc(pos, nsteps)
 	#check mixing
 	for j in range(nwalkers):
@@ -122,6 +134,13 @@ for i in range(len(sigmaLOS)):
 	plt.xlabel('step number')
 	plt.ylabel('oPhi')
 	plt.savefig('/Users/amandaquirk/Desktop/fake_data/mixing/{}_oPhi_mix.png'.format(i))
+	plt.close()
+	for j in range(nwalkers):
+		plt.plot(range(nsteps), sampler.lnprobability[j,:], c='k', alpha=.2)
+	plt.title('Mean acceptance fraction: {0:.3f}'.format(np.mean(sampler.acceptance_fraction)))
+	plt.xlabel('step number')
+	plt.ylabel('Log(Probability)')
+	plt.savefig('/Users/amandaquirk/Desktop/fake_data/burnin/{}_burnin.png'.format(i))
 	plt.close()
 
 	#making corner plots
