@@ -37,12 +37,12 @@ fake_oR = np.random.normal(80, 30, num_data_points)
 fake_oR = [abs(a) for a in fake_oR] #don't want any negative dispersions
 
 #make factor so that the axis ratio is obsurced
-#AR1_wiggle = np.random.normal(.5, .5, num_data_points) * 2 
-AR1_wiggle = 1 #[abs(a) for a in AR1_wiggle]
+AR1_wiggle = np.random.normal(.5, .5, num_data_points) * 2 
+AR1_wiggle = [abs(a) for a in AR1_wiggle]
 fake_oP = fake_oR * np.array(AR1_wiggle) * AR1
 
-#AR2_wiggle = np.random.normal(.4, .4, num_data_points) * 3 
-AR2_wiggle = 1 #[abs(a) for a in AR2_wiggle]
+AR2_wiggle = np.random.normal(.4, .4, num_data_points) * 3 
+AR2_wiggle = [abs(a) for a in AR2_wiggle]
 fake_oZ = fake_oR * np.array(AR2_wiggle) * AR2
 
 # plt.clf()
@@ -78,9 +78,16 @@ fake_oR = np.array(fake_oR)
 #np.savetxt('/Users/amandaquirk/Documents/Ellipsoid/Data/fake_data.txt', np.c_[radii, inclinations, pos_angs, v_circs, fake_oR, fake_oP, fake_oZ, o_LOS, va_neg], header='r (kpc), inclination (deg), PA (deg), circular vel (km/s), sigmaR (km/s), sigmaPhi (km/s), sigmaZ (km/s), sigmaLOS (km/s), AD (km/s)')
 
 #creating fake data that doesn't rely on jean's but has axis ratios
+# PAs = np.random.normal(180, 180, num_data_points)
+# incs = np.random.normal(77, 10, num_data_points)
+# o_LOS = sigma_LOS(fake_oR, fake_oZ, fake_oP, incs, PAs)
+#np.savetxt('/Users/amandaquirk/Desktop/fake_data_nojeans_nowiggle.txt', np.c_[fake_oR, fake_oP, fake_oZ, o_LOS, incs, PAs], header='sigmaR (km/s), sigmaPhi (km/s), sigmaZ (km/s), sigmaLOS (km/s), inclination (deg), PA (deg)')
+
+#has no axis ratios
+fake_oR = np.random.normal(80, 30, num_data_points)
+fake_oZ = np.random.normal(110, 40, num_data_points)
+fake_oP = np.random.normal(50, 10, num_data_points)
 PAs = np.random.normal(180, 180, num_data_points)
 incs = np.random.normal(77, 10, num_data_points)
 o_LOS = sigma_LOS(fake_oR, fake_oZ, fake_oP, incs, PAs)
-np.savetxt('/Users/amandaquirk/Desktop/fake_data_nojeans_nowiggle.txt', np.c_[fake_oR, fake_oP, fake_oZ, o_LOS, incs, PAs], header='sigmaR (km/s), sigmaPhi (km/s), sigmaZ (km/s), sigmaLOS (km/s), inclination (deg), PA (deg)')
-
-
+np.savetxt('/Users/amandaquirk/Desktop/fake_data_nojeans_noARs.txt', np.c_[fake_oR, fake_oP, fake_oZ, o_LOS, incs, PAs], header='sigmaR (km/s), sigmaPhi (km/s), sigmaZ (km/s), sigmaLOS (km/s), inclination (deg), PA (deg)')
